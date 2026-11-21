@@ -1,0 +1,19 @@
+services:
+  backup:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: mc-backup
+    container_name: mc-backup
+    user: "root"
+    environment:
+      - TZ=Europe/Berlin
+      - BACKUP_ROOT=/backup
+      - KEEP=7
+      - WEBHOOK_URL=https://n8n.reyvprdctn.de/webhook/mc_v4
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ../mc_backend:/servers
+      
+    restart: "no"
+    # entrypoint: sleep infinity

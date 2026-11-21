@@ -1,0 +1,65 @@
+# Two one-shot backup jobs, one per machine, so each job controls the containers on ITS OWN Docker daemon.
+# Data is read locally on both machines; archives always end up on the NAS.
+#
+# 1) Build the image on BOTH nodes (put Dockerfile + backup_minecraft_v4.py in /volume1/docker/mc_backup):
+#      docker build -t mc-backup:latest /volume1/docker/mc_backup
+#      docker -H ssh://dev@elitedesk build -t mc-backup:latest /volume1/docker/mc_backup
+#
+# 2) Deploy (from the NAS = manager):
+#      docker stack deploy --resolve-image never -c stack.yml mc
+#
+# 3) Run a backup - pick the service by the machine the server runs on:
+#      docker service update --args "Lobby mc-backend-lobby2 /servers/data_lobby" --force mc_backup_nas
+#      docker service update --args "rs    mc-backend-rs     /servers/data_rs"     --force mc_backup_elitedesk
+
+x-backup: &backup
+  image: mc-backup:latest              # must exist locally on the node that runs the job
+  user: "root"
+  command: ["--help"]                  # harmless default; real args come from `service update --args`
+  environment:
+    - TZ=Europe/Berlin
+    - BACKUP_ROOT=/backup
+    - KEEP=7
+    - WEBHOOK_URL=https://n8n.reyvprdctn.de/webhook/mc_v4
+  stop_grace_period: 2m
+
+services:
+  # ---------------- runs on the NAS: lobby (data local, backups local) ----------------
+  backup_nas:
+    <<: *backup
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock          # the NAS's Docker daemon
+      - /volume1/docker/mc_backup/backup:/backup           # backup target (local on the NAS)
+      - /volume1/docker/mc_lobby:/servers/data_lobby       # lobby data (local on the NAS)
+    deploy:
+      mode: replicated-job
+      replicas: 0
+      restart_policy:
+        condition: none
+      placement:
+        constraints:
+          - node.hostname == DXP4800PLUS-9700
+
+  # ---------------- runs on the elitedesk: backend (data local, backups -> NAS over NFS) ----------------
+  backup_elitedesk:
+    <<: *backup
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock          # the elitedesk's Docker daemon
+      - nas_backup:/backup                                 # NFS share on the NAS
+      - /home/patrick/docker/mc_backend:/servers                           # backend data (local on the elitedesk)
+    deploy:
+      mode: replicated-job
+      replicas: 0
+      restart_policy:
+        condition: none
+      placement:
+        constraints:
+          - node.hostname == elitedesk
+
+volumes:
+  nas_backup:
+    driver: local
+    driver_opts:
+      type: nfs
+      o: "addr=192.168.178.77,rw,nfsvers=4"
+      device: ":/volume1/docker/mc_backup/backup"          # NFS path as exported by the NAS
