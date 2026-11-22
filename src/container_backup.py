@@ -2,19 +2,6 @@
 """
 Universal Docker-volume backup (stop container -> tar.gz -> start container -> webhook).
 
-USE: backup_minecraft_v4.py <repr> <container_name> <container_path> [options]
-
-  repr             Short server name, e.g. mc3_rs. Backups go to <backup-root>/<repr>/
-                   and are named <repr>_<YYYY-mm-dd_HH-MM-SS>.tar.gz
-  container_name   Docker container to stop/start, e.g. mc-backend-rs
-  container_path   Server data directory as seen inside THIS container, e.g. /servers/data_rs
-
-Environment variables (all optional, flags override them):
-  BACKUP_ROOT (/backup)   KEEP (7)   STOP_TIMEOUT (60)
-  WEBHOOK_URL (n8n webhook)           DOCKER_SOCKET (/var/run/docker.sock)
-
-Exit codes: 0 = ok (or skipped because already running), 1 = backup/container/preflight error, 2 = usage error.
-Needs only the Python standard library plus the `tar` binary (and optionally `pigz`).
 """
 
 import argparse
@@ -37,7 +24,7 @@ from datetime import datetime
 from pathlib import Path
 
 DOCKER_SOCKET = os.environ.get("DOCKER_SOCKET", "/var/run/docker.sock")
-DEFAULT_WEBHOOK = os.environ.get("WEBHOOK_URL", "https://n8n.reyvprdctn.de/webhook/mc_v4")
+DEFAULT_WEBHOOK = os.environ.get("WEBHOOK_URL")
 WEBHOOK_USER_AGENT = os.environ.get("WEBHOOK_USER_AGENT", "mc-backup/1.0")
 
 log = logging.getLogger("backup")

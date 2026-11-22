@@ -13,6 +13,6 @@ RUN apt-get update && \
 # (No docker CLI needed: the script talks to the Docker socket directly.)
 
 WORKDIR /scripts
-COPY ./src/ /scripts/
+COPY ./src/ ./
 RUN chmod +x /scripts/*.py
-ENTRYPOINT ["python3", "-u", "/scripts/backup_minecraft_v4.py"]
+ENTRYPOINT ["python3", "-u", "container_backup.py"]

@@ -1,19 +1,28 @@
+x-backup: &backup
+  build:
+    context: .
+    dockerfile: Dockerfile
+  image: container-backup
+  user: "root"
+  restart: "no"
+  environment:
+    - TZ=Europe/Berlin
+    - BACKUP_ROOT=/backup
+    - KEEP=7
+    - WEBHOOK_URL=test.com
+  volumes:
+    - /var/run/docker.sock:/var/run/docker.sock
+    - ./backup:/backup                       # backup target
+    - ../mc_backend:/servers                 # backend data  (-> /servers/data_rs)
+    - ../mc_lobby:/servers/data_lobby        # lobby data
+
 services:
-  backup:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: mc-backup
-    container_name: mc-backup
-    user: "root"
-    environment:
-      - TZ=Europe/Berlin
-      - BACKUP_ROOT=/backup
-      - KEEP=7
-      - WEBHOOK_URL=https://n8n.reyvprdctn.de/webhook/mc_v4
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ../mc_backend:/servers
-      
-    restart: "no"
-    # entrypoint: sleep infinity
+  backup_lobby:
+    <<: *backup
+    container_name: backup-lobby
+    command: ["Lobby", "mc-backend-lobby2", "/servers/data_lobby"]   # only the 3 arguments (ENTRYPOINT is in the image)
+
+  backup_mc3:
+    <<: *backup
+    container_name: backup-mc3
+    command: ["MC3", "mc-backend-mc3", "/servers/data_rs"]

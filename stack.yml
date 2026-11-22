@@ -1,0 +1,59 @@
+x-backup: &backup
+  image: container-backup:latest              # must exist locally on the node that runs the job
+  user: "root"
+  #command: ["--help"]                  # harmless default; real args come from `service update --args`
+  networks: [hostnet]
+  environment:
+    - TZ=Europe/Berlin
+    - BACKUP_ROOT=/backup
+    - KEEP=7
+    - WEBHOOK_URL=https://n8n.reyvprdctn.de/webhook/mc_v4
+  stop_grace_period: 2m
+
+services:
+  # ---------------- runs on the NAS: lobby (data local, backups local) ----------------
+  DXP4800PLUS-9700:
+    <<: *backup
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock          # the NAS's Docker daemon
+      - /volume1/docker/container_backup/backup:/backup           # backup target (local on the NAS)
+      - /volume1/docker/mc_lobby:/servers/data_lobby       # lobby data (local on the NAS)
+    deploy:
+      mode: replicated-job
+      replicas: 1
+      restart_policy:
+        condition: none
+      placement:
+        constraints:
+          - node.hostname == DXP4800PLUS-9700
+
+  # ---------------- runs on the elitedesk: backend (data local, backups -> NAS over NFS) ----------------
+  Elitedesk:
+    <<: *backup
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock          # the elitedesk's Docker daemon
+      # - nas_backup:/backup                                 # NFS share on the NAS
+      - /home/patrick/docker/container_backup/backup:/backup
+      - /home/patrick/docker/mc_backend:/servers
+
+    deploy:
+      mode: replicated-job
+      replicas: 1
+      restart_policy:
+        condition: none
+      placement:
+        constraints:
+          - node.hostname == elitedesk
+
+# volumes:
+#   nas_backup:
+#     driver: local
+#     driver_opts:
+#       type: nfs
+#       o: "addr=192.168.178.77,rw,nfsvers=4"
+#       device: ":/volume1/docker/container_backup/backup"          # NFS path as exported by the NAS
+
+networks:
+  hostnet:
+    external: true
+    name: host
